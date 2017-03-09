@@ -10,29 +10,26 @@ import csv
 # TODO: all non-transfer txs may be exported into single file with less fields
 
 ZEN_FROM_HOME_FIELDS = {
-    'date': 'date',                                     # single-acct version
-    'categoryName': 'category',                         # single-acct version
+    'date': 'date',
+    'categoryName': 'category',
+    'comment': 'description',
+    'outcomeAccountName': 'account',
+    'outcome': 'total',
+}
+TRANSFER_FIELDS = ZEN_FROM_HOME_FIELDS.copy()
+TRANSFER_FIELDS.update({
     'payee': None,
-    'comment': 'description',                           # single-acct version
-    'outcomeAccountName': 'account',                    # single-acct version
-    'outcome': 'total',                                 # single-acct version
-    'outcomeCurrencyShortTitle': 'currency',
     'incomeAccountName': 'transfer',
     'income': 'total',
-    'incomeCurrencyShortTitle': 'currency',
-    'createdDate': 'date',
-    'changedDate': 'date',
-}
-TRANSFER_ACCT = '_transfers'
+})
 
 
-def home_to_zen_format(row):
+def home_to_zen_format(row, fields_map):
     ret = {}
 
-    for zen_key, home_key in ZEN_FROM_HOME_FIELDS.items():
+    for zen_key, home_key in fields_map.items():
         home_val = row.get(home_key, '')
 
-        # TODO: debt-transfers must have payee
         if zen_key == 'payee':
             home_val = 'me'
 
@@ -41,17 +38,17 @@ def home_to_zen_format(row):
     return ret
 
 
-def write_account_transactions(account, account_txs):
-    if len(account_txs) == 0:
+def dump_transactions(filename, transactions):
+    if len(transactions) == 0:
         return
 
-    fields = account_txs[0].keys()
-    filename = account + '.csv'
+    fields = transactions[0].keys()
+    filename += '.csv'
 
     with open(filename, 'w', encoding='utf-8') as ofd:
         writer = csv.DictWriter(ofd, fields)
         writer.writeheader()
-        writer.writerows(account_txs)
+        writer.writerows(transactions)
 
 
 def main(argv):
@@ -60,13 +57,15 @@ def main(argv):
         return 1
 
     prev_transfer = None
-    transactions = {}           # map account -> transactions[]
+    transactions = []
+    transfers = []
+    accounts = set()
 
     with open(argv[1], encoding='utf-8-sig') as ifd:
         reader = csv.DictReader(ifd, delimiter=';')
 
         for row in reader:
-            account = row['account']
+            accounts.add(row['account'])
 
             # assume we are processing 2nd record
             transfer_from = row['transfer']
@@ -89,21 +88,17 @@ def main(argv):
                     row['total'] = -1 * float(row['total'])
                     prev_transfer = row.copy()
 
-            zen_row = home_to_zen_format(row)
-
-            key = TRANSFER_ACCT if transfer_from else account
-
-            account_txs = transactions.get(key, [])
-            account_txs.append(zen_row)
-            transactions[key] = account_txs
+                zen_row = home_to_zen_format(row, TRANSFER_FIELDS)
+                transfers.append(zen_row)
+            else:
+                zen_row = home_to_zen_format(row, ZEN_FROM_HOME_FIELDS)
+                transactions.append(zen_row)
 
 
-    accounts = list(transactions.keys())
-    accounts.remove(TRANSFER_ACCT)
     print('create the following accounts: {}'.format(accounts))
 
-    for account, account_txs in transactions.items():
-        write_account_transactions(account, account_txs)
+    dump_transactions('transactions', transactions)
+    dump_transactions('transfers', transfers)
 
     return 0
 
