@@ -33,6 +33,9 @@ def home_to_zen_format(row, fields_map):
         if zen_key == 'payee':
             home_val = 'me'
 
+        if isinstance(home_val, str):
+            home_val = home_val.replace(',', '/')
+
         ret[zen_key] = home_val
 
     return ret
