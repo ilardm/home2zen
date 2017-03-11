@@ -38,17 +38,34 @@ def home_to_zen_format(row, fields_map):
     return ret
 
 
-def dump_transactions(filename, transactions):
+def dump_transactions(filename, transactions, limit=None):
+    import math
+
     if len(transactions) == 0:
         return
 
     fields = transactions[0].keys()
-    filename += '.csv'
+    dump_map = {}
 
-    with open(filename, 'w', encoding='utf-8') as ofd:
-        writer = csv.DictWriter(ofd, fields)
-        writer.writeheader()
-        writer.writerows(transactions)
+    if limit and limit > 1 and len(transactions) > limit-1:
+        limit -= 1
+
+        nfiles = math.ceil(len(transactions) / limit)
+        for i in range(nfiles):
+            fname = '{}-{:03d}.csv'.format(filename, i)
+            start = i * limit
+            end = start + limit
+
+            dump_map[fname] = transactions[start:end]
+    else:
+        fname = filename + '.csv'
+        dump_map[fname] = transactions
+
+    for fname, txs in dump_map.items():
+        with open(fname, 'w', encoding='utf-8') as ofd:
+            writer = csv.DictWriter(ofd, fields)
+            writer.writeheader()
+            writer.writerows(txs)
 
 
 def main(argv):
@@ -97,8 +114,8 @@ def main(argv):
 
     print('create the following accounts: {}'.format(accounts))
 
-    dump_transactions('transactions', transactions)
-    dump_transactions('transfers', transfers)
+    dump_transactions('transactions', transactions, limit=1000)
+    dump_transactions('transfers', transfers, limit=1000)
 
     return 0
 
